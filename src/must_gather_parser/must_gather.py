@@ -25,14 +25,14 @@ must_gather_timestamp_pattern = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{
 
 def parse_k8s_file_as_list(f):
     with open(f, 'rb') as file:
-        unstruct = yaml.load(file, Loader=K8sSafeLoader)
+        unstruct = yaml.safe_load(file, Loader=K8sSafeLoader)
     if "items" in unstruct:
         return unstruct
     return {"apiVersion": "v1", "kind": "List", "items": [unstruct]}
 
 def parse_crd_file(f):
     with open(f, 'rb') as file:
-        return yaml.load(file, Loader=K8sSafeLoader)
+        return yaml.safe_load(file, Loader=K8sSafeLoader)
 
 class K8sSafeLoader(BaseSafeLoader):
     """Custom loader for K8s manifests with special handling."""

@@ -1,5 +1,33 @@
 # must-gather-parser
-Asyncrhonous (multi) must-gather parser library.
+Asynchronous (multi) must-gather parser library.
+
+## INSTALL
+```
+pip install must-gather-parser
+```
+
+---
+
+This module uses [**PyYAML**](https://github.com/yaml/pyyaml) for parsing YAML files.
+
+For **significantly better performance**, PyYAML should be installed **with [libyaml](https://github.com/yaml/libyaml) support**.  
+When available, PyYAML automatically uses its C-based loader, resulting in much faster YAML processing.
+
+#### `libyaml` installation
+```
+# Debian / Ubuntu
+sudo apt install libyaml-dev
+```
+```
+# macOS
+brew install libyaml
+```
+```
+# Fedora
+sudo dnf install libyaml-devel
+```
+
+## USAGE
 ```python
 import asyncio
 from must_gather_parser import MustGather
