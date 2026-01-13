@@ -11,7 +11,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          fetch-depth: 0
+          
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
@@ -23,6 +25,9 @@ jobs:
           version: latest
           virtualenvs-create: true
           virtualenvs-in-project: true
+
+      - name: Show resolved version
+        run: poetry version
 
       - name: Enable dynamic versioning
         run: poetry self add poetry-dynamic-versioning
