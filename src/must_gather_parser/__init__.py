@@ -1,3 +1,3 @@
-from .must_gather import MustGather
+from .must_gather import MustGather, ResourceNotFound
 
-__all__ = ["MustGather"]
+__all__ = ["MustGather", "ResourceNotFound"]

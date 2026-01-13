@@ -23,6 +23,10 @@ logger = logging.getLogger(__name__)
 must_gather_timestamp_pattern = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\s+([+-]\d{4})")
 
 
+class ResourceNotFound(Exception):
+    pass
+
+
 def parse_k8s_file_as_list(f):
     with open(f, 'rb') as file:
         unstruct = yaml.load(file, Loader=K8sSafeLoader)
@@ -30,13 +34,16 @@ def parse_k8s_file_as_list(f):
         return unstruct
     return {"apiVersion": "v1", "kind": "List", "items": [unstruct]}
 
+
 def parse_crd_file(f):
     with open(f, 'rb') as file:
         return yaml.load(file, Loader=K8sSafeLoader)
 
+
 class K8sSafeLoader(BaseSafeLoader):
     """Custom loader for K8s manifests with special handling."""
     pass
+
 
 def construct_undefined(loader, node):
     """Treat undefined tags as strings."""
@@ -47,7 +54,7 @@ def construct_undefined(loader, node):
     elif isinstance(node, yaml.MappingNode):
         return loader.construct_mapping(node)
 
-# Handle all undefined tags
+
 K8sSafeLoader.add_constructor(None, construct_undefined)
 
 
@@ -144,14 +151,13 @@ class MustGather:
     
 
     def _get_resource_paths(self, resource_kind_plural, group, namespace, all_namespaces, namespaced):
-        sub_folder = "namespaces" if namespaced else "cluster-scoped"
+        sub_folder = "namespaces" if namespaced else "cluster-scoped-resources"
         path = "" if not namespaced else ("*/" if (all_namespaces or not namespace) else f"{namespace}/")  
         logging.debug(f'checking for resources into: "<MUST_GATHER>/{sub_folder}/{path}{group}/{resource_kind_plural}/*"')
         resource_paths = list(chain.from_iterable(
             (Path(f'{must_gather}/{sub_folder}')).glob(f'{path}{group}/{resource_kind_plural}/*') 
             for must_gather in self.root_dirs.keys()
         ))
-        
         # pods exception 
         if resource_kind_plural=="pods" and group=="core" and (len(self.root_dirs) > 1 or (len(self.root_dirs) == 1 and not resource_paths)):
                 logging.debug(f'checking for resources into: "<MUST_GATHER>/{sub_folder}/{path}{resource_kind_plural}/*/*.yaml"')
@@ -184,15 +190,20 @@ class MustGather:
             results = await asyncio.gather(*tasks)
         uid_map = set()
         logging.debug(f"found {len(results)} results before applying deduplication")
-        all_docs = [
+        resulting_resources = [
             resource
             for items in results
             for resource in items.get("items", [])
             if (uid := resource.get("metadata", {}).get("uid")) not in uid_map
             and (not resource_name or resource.get("metadata", {}).get("name", "") in resource_name) and not uid_map.add(uid)
         ]
-        return {"apiVersion": "v1", "kind": "List", "items": all_docs}
+        if len(resource_name) == 1:
+            if resulting_resources:
+                return resulting_resources[0]
+            raise ResourceNotFound
+        return {"apiVersion": "v1", "kind": "List", "items": resulting_resources}
     
+
     async def logs_pod(self, namespace, pod_name, container_name, fallback_to_previous=True) -> AsyncIterator[str]:
         container_previous_log_file = None
         container_log_file = None
