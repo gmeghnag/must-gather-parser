@@ -1,7 +1,7 @@
 [project]
 name = "must-gather-parser"
-version = "0.2.1"
-description = ""
+version = "0.0.0"  # placeholder, never used
+description = "Asynchronous (multi) must-gather parsing library."
 authors = [
     {name = "Gabriel Meghnagi",email = "gabrielmeghnagi@outlook.com"}
 ]
@@ -14,6 +14,11 @@ packages = [{include = "must_gather_parser", from = "src"}]
 include = [
     "src/must_gather_parser/api_resources.json"
 ]
+
+[tool.poetry-dynamic-versioning]
+enable = true
+vcs = "git"
+style = "semver"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
