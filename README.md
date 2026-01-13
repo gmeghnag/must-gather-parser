@@ -1,4 +1,9 @@
 # must-gather-parser
+
+[![Python Version](https://img.shields.io/pypi/pyversions/must-gather-parser.svg)](https://pypi.org/project/must-gather-parser/)
+![publish workflow](https://github.com/gmeghnag/must-gather-parser/actions/workflows/publish.yml/badge.svg) 
+![version](https://img.shields.io/pypi/v/must-gather-parser?label=version&color=green)
+
 Asynchronous (multi) must-gather parsing library.
 
 ## INSTALL
