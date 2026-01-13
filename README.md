@@ -1,5 +1,5 @@
 # must-gather-parser
-Asynchronous (multi) must-gather parser library.
+Asynchronous (multi) must-gather parsing library.
 
 ## INSTALL
 ```
