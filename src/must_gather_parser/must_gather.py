@@ -8,14 +8,14 @@ from datetime import datetime, timezone
 from concurrent.futures import ProcessPoolExecutor
 from itertools import chain
 from importlib import resources
-from typing import List, AsyncIterator
+from typing import List, AsyncIterator, Any
 
 import aiofiles
 import yaml
 try:
-    BaseSafeLoader = yaml.CSafeLoader
-except AttributeError:
-    BaseSafeLoader = yaml.SafeLoader
+    from yaml import CSafeLoader as BaseSafeLoader
+except:
+    from yaml import SafeLoader as BaseSafeLoader
 
 
 logger = logging.getLogger(__name__)
@@ -81,16 +81,15 @@ class MustGather:
         self.root_dirs = {}
         self.timestamp = None
         self.crds = {}
-        self.apis = {}
+        self.api_resources = {}
         self.executor = ProcessPoolExecutor(
             max_workers=min(os.cpu_count() or 4, 16)
         )
         self.semaphore = asyncio.Semaphore(min(os.cpu_count() or 4, 16))
-        with resources.open_text("must_gather_parser", "api_resources.json") as f:
-            self.apis = json.load(f)
 
 
-    def _get_cpu_limit(default=1):
+
+    def _get_cpu_limit(self, default=1):
         try:
             with open("/sys/fs/cgroup/cpu.max") as f:
                 quota, period = f.read().strip().split()
@@ -101,7 +100,7 @@ class MustGather:
         return default
 
 
-    def use(self, path):
+    async def use(self, path):
         self.path = Path(path).expanduser()
         self.root_dirs = self._root_dirs()
         if not self.path.exists():
@@ -109,8 +108,7 @@ class MustGather:
         
         if not self.root_dirs:
             raise ValueError(f'Invalid must-gather: no "timestamp" file found in {self.path} subdirectories')
-        self.crds = self.apis.copy()
-        self._collect_crds()
+        self.api_resources = await self._api_resources()
 
 
     def close(self):
@@ -179,7 +177,7 @@ class MustGather:
     async def get_resources(self, resource_kind_plural: str, group: str, namespace: str | None = "default", resource_name: List[str] = [], all_namespaces: bool | None = False, **kwargs):
         group = "core" if group in {"", "v1"} else group
         if (namespaced:=kwargs.get("is_namespaced")) is None or not isinstance(namespaced, bool):
-            namespaced = self.crds.get(group, {}).get(resource_kind_plural, {}).get("namespaced", None)
+            namespaced = self.api_resources.get(group, {}).get(resource_kind_plural, {}).get("namespaced", None)
         resource_paths = self._get_resource_paths(resource_kind_plural, group, namespace, all_namespaces, namespaced)
         loop = asyncio.get_running_loop()
         async with self.semaphore:
@@ -203,6 +201,59 @@ class MustGather:
             raise ResourceNotFound
         return {"apiVersion": "v1", "kind": "List", "items": resulting_resources}
     
+
+    async def _api_resources(self, skip_empty=True):
+        api_resources = {}
+    
+        async def empty_items(file_path: Path):
+            async with aiofiles.open(file_path, encoding="utf-8") as f:
+                chunk = await f.read(512)
+                for line in chunk.split("\n"):
+                    if line.strip() == "items: []":
+                        return True
+            return False
+
+        async def add_resource(resource_plural_path: Path, namespaced: bool):
+            api_group = "v1" if resource_plural_path.parent.name == "core" else resource_plural_path.parent.name
+            resource_plural = resource_plural_path.stem
+            if api_group == "pods":
+                api_resources.setdefault("v1", {}).setdefault(
+                    "pods",
+                    {"namespaced": namespaced},
+                )
+                return
+            if skip_empty:
+                if api_resources.get(api_group, {}).get(resource_plural) is not None:
+                    return
+                if resource_plural_path.is_file():
+                    if await empty_items(resource_plural_path):
+                        return 
+                if resource_plural_path.is_dir():
+                    if ( resource_plural_path / f"{resource_plural}.yaml" ).exists():
+                        if await empty_items(resource_plural_path / f"{resource_plural}.yaml"):
+                            return 
+                    else:
+                        if not any(resource_plural_path.iterdir()):
+                            return             
+            api_resources.setdefault(api_group, {}).setdefault(
+                resource_plural,
+                {"namespaced": namespaced},
+            )
+    
+        for resource_plural_path in chain.from_iterable(
+            Path(must_gather, "cluster-scoped-resources").glob("*/*")
+            for must_gather in self.root_dirs
+        ):
+            await add_resource(resource_plural_path, namespaced=False)
+    
+        for resource_plural_path in chain.from_iterable(
+            Path(must_gather, "namespaces").glob("*/*/*")
+            for must_gather in self.root_dirs
+        ):
+            await add_resource(resource_plural_path, namespaced=True)
+    
+        return api_resources
+
 
     async def logs_pod(self, namespace, pod_name, container_name, fallback_to_previous=True) -> AsyncIterator[str]:
         container_previous_log_file = None
