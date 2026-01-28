@@ -149,6 +149,7 @@ class MustGather:
     
 
     def _get_resource_paths(self, resource_kind_plural, group, namespace, all_namespaces, namespaced):
+        group = "core" if group in {"", "v1"} else group
         sub_folder = "namespaces" if namespaced else "cluster-scoped-resources"
         path = "" if not namespaced else ("*/" if (all_namespaces or not namespace) else f"{namespace}/")  
         logging.debug(f'checking for resources into: "<MUST_GATHER>/{sub_folder}/{path}{group}/{resource_kind_plural}/*"')
@@ -175,8 +176,8 @@ class MustGather:
 
 
     async def get_resources(self, resource_kind_plural: str, group: str, namespace: str | None = "default", resource_name: List[str] = [], all_namespaces: bool | None = False, **kwargs):
-        group = "core" if group in {"", "v1"} else group
-        if (namespaced:=kwargs.get("is_namespaced")) is None or not isinstance(namespaced, bool):
+        group = "v1" if group in {"", "core"} else group
+        if (namespaced:=kwargs.get("namespaced")) is None or not isinstance(namespaced, bool):
             namespaced = self.api_resources.get(group, {}).get(resource_kind_plural, {}).get("namespaced", None)
         resource_paths = self._get_resource_paths(resource_kind_plural, group, namespace, all_namespaces, namespaced)
         loop = asyncio.get_running_loop()
