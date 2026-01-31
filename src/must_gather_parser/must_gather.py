@@ -184,7 +184,8 @@ class MustGather:
         async with self.semaphore:
             tasks = [
                 loop.run_in_executor(self.executor, parse_k8s_file_as_list, path)
-                for path in resource_paths
+                for path in resource_paths if not (path.name.startswith(".") or path.parent.name.startswith("."))
+
             ]
             results = await asyncio.gather(*tasks)
         uid_map = set()
@@ -245,12 +246,22 @@ class MustGather:
             Path(must_gather, "cluster-scoped-resources").glob("*/*")
             for must_gather in self.root_dirs
         ):
+            if (
+                resource_plural_path.name.startswith(".")
+                or resource_plural_path.parent.name.startswith(".")
+            ):
+                continue
             await add_resource(resource_plural_path, namespaced=False)
     
         for resource_plural_path in chain.from_iterable(
             Path(must_gather, "namespaces").glob("*/*/*")
             for must_gather in self.root_dirs
         ):
+            if (
+                resource_plural_path.name.startswith(".")
+                or resource_plural_path.parent.name.startswith(".")
+            ):
+                continue
             await add_resource(resource_plural_path, namespaced=True)
     
         return api_resources
