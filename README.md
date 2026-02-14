@@ -35,8 +35,10 @@ sudo dnf install libyaml-devel
 ## USAGE
 ```python
 import asyncio
-from must_gather_parser import MustGather
 import json
+
+from must_gather_parser import MustGather
+
 
 must_gather = MustGather()
 
@@ -44,12 +46,12 @@ async def main():
     try:
         await must_gather.use("/home/must-gather.local.1972254135986597168")
         out = await must_gather.get_resources(
-                resource_kind_plural = "pods",
-                group = "core",
-                all_namespaces = True
-            )
+            resource_kind_plural="pods",
+            group="core",
+            all_namespaces=True
+        )
         print(json.dumps(out))
-    except:
+    finally:
         must_gather.close()
 
 
