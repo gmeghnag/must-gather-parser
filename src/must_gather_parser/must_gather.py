@@ -132,20 +132,6 @@ class MustGather:
             return parse_log_datetime(timestamp_file_open.readline().strip())
     
 
-    def _collect_crds(self):
-        crd_files = chain.from_iterable(
-            (Path(must_gather_absolute_path) / "cluster-scoped-resources" / "apiextensions.k8s.io" / "customresourcedefinitions").glob('*.yaml') 
-            for must_gather_absolute_path in self.root_dirs
-        )
-        results = self.executor.map(parse_crd_file, crd_files)
-        for crd in results:
-            crd_group = crd.get("spec", {}).get("group", "")
-            if crd_group not in self.crds:
-                self.crds[crd.get("spec", {}).get("group", "")] = {}
-            plural_name = crd.get("spec", {}).get("names", {}).get("plural", "")
-            self.crds[crd_group][plural_name] = {"namespaced": crd.get("spec", {}).get("scope") == "Namespaced"}
-    
-
     def _get_resource_paths(self, resource_kind_plural, group, namespace, all_namespaces, namespaced):
         group = "core" if group in {"", "v1"} else group
         sub_folder = "namespaces" if namespaced else "cluster-scoped-resources"
