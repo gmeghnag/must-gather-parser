@@ -117,11 +117,11 @@ class MustGather:
     def _root_dirs(self):
         root_dirs = {}
         for path in self.path.rglob("timestamp"):
-            root_dirs[path.parent.absolute().as_posix()] = {"timestamp" : self._get_must_gather_timestamp(path)}
+            root_dirs[path.parent.absolute()] = {"timestamp" : self._get_must_gather_timestamp(path)}
         if len(root_dirs) > 1:
-            root_dirs_list = list(root_dirs.keys())
-            if root_dirs_list[0] in root_dirs_list[1]:
-                root_dirs.pop(root_dirs_list[0], None)
+            root_dir_paths = list(root_dirs.keys())
+            if root_dir_paths[0].as_posix() in root_dir_paths[1].as_posix():
+                root_dirs.pop(root_dir_paths[0], None)
         if root_dirs:
             self.timestamp = min([v["timestamp"] for v in root_dirs.values()]) 
         return root_dirs
@@ -138,21 +138,21 @@ class MustGather:
         path = "" if not namespaced else ("*/" if (all_namespaces or not namespace) else f"{namespace}/")  
         logging.debug(f'checking for resources into: "<MUST_GATHER>/{sub_folder}/{path}{group}/{resource_kind_plural}/*"')
         resource_paths = list(chain.from_iterable(
-            (Path(f'{must_gather_absolute_path}/{sub_folder}')).glob(f'{path}{group}/{resource_kind_plural}/*') 
+            (must_gather_absolute_path / sub_folder).glob(f'{path}{group}/{resource_kind_plural}/*') 
             for must_gather_absolute_path in self.root_dirs
         ))
         # pods exception 
         if resource_kind_plural=="pods" and group=="core" and (len(self.root_dirs) > 1 or (len(self.root_dirs) == 1 and not resource_paths)):
                 logging.debug(f'checking for resources into: "<MUST_GATHER>/{sub_folder}/{path}{resource_kind_plural}/*/*.yaml"')
                 resource_paths.extend(list(chain.from_iterable(
-                    (Path(f'{must_gather_absolute_path}/{sub_folder}')).glob(f'{path}{resource_kind_plural}/*/*.yaml') 
+                    (must_gather_absolute_path / sub_folder).glob(f'{path}{resource_kind_plural}/*/*.yaml') 
                     for must_gather_absolute_path in self.root_dirs
                 )))
         
         if not resource_paths:
             logging.debug(f'checking for resources into: "<MUST_GATHER>/{sub_folder}/{path}{group}/{resource_kind_plural}.yaml"')
             resource_paths = list(chain.from_iterable(
-                (Path(f'{must_gather_absolute_path}/{sub_folder}')).glob(f'{path}{group}/{resource_kind_plural}.yaml') 
+                (must_gather_absolute_path / sub_folder).glob(f'{path}{group}/{resource_kind_plural}.yaml') 
                 for must_gather_absolute_path in self.root_dirs
             ))
 
@@ -161,8 +161,8 @@ class MustGather:
 
     def path_exists(self, path) -> tuple[bool, Path]:
         for must_gather_absolute_path in self.root_dirs:
-            if Path(f'{must_gather_absolute_path}/{path}').exists():
-                return True, Path(f'{must_gather_absolute_path}/{path}').expanduser()
+            if (must_gather_absolute_path / path).exists():
+                return True, must_gather_absolute_path / path 
         return False, Path()
 
 
@@ -234,7 +234,7 @@ class MustGather:
             )
     
         for resource_plural_path in chain.from_iterable(
-            Path(must_gather_absolute_path, "cluster-scoped-resources").glob("*/*")
+            (must_gather_absolute_path / "cluster-scoped-resources").glob("*/*")
             for must_gather_absolute_path in self.root_dirs
         ):
             if (
@@ -245,7 +245,7 @@ class MustGather:
             await add_resource(resource_plural_path, namespaced=False)
     
         for resource_plural_path in chain.from_iterable(
-            Path(must_gather_absolute_path, "namespaces").glob("*/*/*")
+            (must_gather_absolute_path / "namespaces").glob("*/*/*")
             for must_gather_absolute_path in self.root_dirs
         ):
             if (
@@ -263,7 +263,7 @@ class MustGather:
         container_log_file = None
         tail = ""
         log_files = chain.from_iterable(
-                (Path(f'{must_gather_absolute_path}/namespaces/{namespace}/pods/{pod_name}/{container_name}/{container_name}/logs')).glob('*.log') 
+                (must_gather_absolute_path / "namespaces" / namespace / "pods" / pod_name / container_name / container_name / "logs").glob('*.log') 
                 for must_gather_absolute_path in self.root_dirs
             )
         for log_file in log_files:
