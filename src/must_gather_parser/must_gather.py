@@ -2,13 +2,11 @@ import logging
 import os
 import re
 import asyncio
-import json
 from pathlib import Path
 from datetime import datetime, timezone
 from concurrent.futures import ProcessPoolExecutor
 from itertools import chain
-from importlib import resources
-from typing import List, AsyncIterator, Any
+from typing import List, AsyncIterator
 
 import aiofiles
 import yaml
@@ -121,7 +119,7 @@ class MustGather:
         for path in self.path.rglob("timestamp"):
             root_dirs[path.parent.absolute().as_posix()] = {"timestamp" : self._get_must_gather_timestamp(path)}
         if len(root_dirs) > 1:
-            root_dirs_list= list(root_dirs.keys())
+            root_dirs_list = list(root_dirs.keys())
             if root_dirs_list[0] in root_dirs_list[1]:
                 root_dirs.pop(root_dirs_list[0], None)
         if root_dirs:
@@ -136,8 +134,8 @@ class MustGather:
 
     def _collect_crds(self):
         crd_files = chain.from_iterable(
-            (Path(must_gather) / "cluster-scoped-resources" / "apiextensions.k8s.io" / "customresourcedefinitions").glob('*.yaml') 
-            for must_gather in self.root_dirs.keys()
+            (Path(must_gather_absolute_path) / "cluster-scoped-resources" / "apiextensions.k8s.io" / "customresourcedefinitions").glob('*.yaml') 
+            for must_gather_absolute_path in self.root_dirs
         )
         results = self.executor.map(parse_crd_file, crd_files)
         for crd in results:
@@ -154,25 +152,32 @@ class MustGather:
         path = "" if not namespaced else ("*/" if (all_namespaces or not namespace) else f"{namespace}/")  
         logging.debug(f'checking for resources into: "<MUST_GATHER>/{sub_folder}/{path}{group}/{resource_kind_plural}/*"')
         resource_paths = list(chain.from_iterable(
-            (Path(f'{must_gather}/{sub_folder}')).glob(f'{path}{group}/{resource_kind_plural}/*') 
-            for must_gather in self.root_dirs.keys()
+            (Path(f'{must_gather_absolute_path}/{sub_folder}')).glob(f'{path}{group}/{resource_kind_plural}/*') 
+            for must_gather_absolute_path in self.root_dirs
         ))
         # pods exception 
         if resource_kind_plural=="pods" and group=="core" and (len(self.root_dirs) > 1 or (len(self.root_dirs) == 1 and not resource_paths)):
                 logging.debug(f'checking for resources into: "<MUST_GATHER>/{sub_folder}/{path}{resource_kind_plural}/*/*.yaml"')
                 resource_paths.extend(list(chain.from_iterable(
-                    (Path(f'{must_gather}/{sub_folder}')).glob(f'{path}{resource_kind_plural}/*/*.yaml') 
-                    for must_gather in self.root_dirs.keys()
+                    (Path(f'{must_gather_absolute_path}/{sub_folder}')).glob(f'{path}{resource_kind_plural}/*/*.yaml') 
+                    for must_gather_absolute_path in self.root_dirs
                 )))
         
         if not resource_paths:
             logging.debug(f'checking for resources into: "<MUST_GATHER>/{sub_folder}/{path}{group}/{resource_kind_plural}.yaml"')
             resource_paths = list(chain.from_iterable(
-                (Path(f'{must_gather}/{sub_folder}')).glob(f'{path}{group}/{resource_kind_plural}.yaml') 
-                for must_gather in self.root_dirs.keys()
+                (Path(f'{must_gather_absolute_path}/{sub_folder}')).glob(f'{path}{group}/{resource_kind_plural}.yaml') 
+                for must_gather_absolute_path in self.root_dirs
             ))
 
         return resource_paths
+
+
+    def path_exists(self, path) -> tuple[bool, Path]:
+        for must_gather_absolute_path in self.root_dirs:
+            if Path(f'{must_gather_absolute_path}/{path}').exists():
+                return True, Path(f'{must_gather_absolute_path}/{path}').expanduser()
+        return False, Path()
 
 
     async def get_resources(self, resource_kind_plural: str, group: str, namespace: str | None = "default", resource_name: List[str] = [], all_namespaces: bool | None = False, **kwargs):
@@ -243,8 +248,8 @@ class MustGather:
             )
     
         for resource_plural_path in chain.from_iterable(
-            Path(must_gather, "cluster-scoped-resources").glob("*/*")
-            for must_gather in self.root_dirs
+            Path(must_gather_absolute_path, "cluster-scoped-resources").glob("*/*")
+            for must_gather_absolute_path in self.root_dirs
         ):
             if (
                 resource_plural_path.name.startswith(".")
@@ -254,8 +259,8 @@ class MustGather:
             await add_resource(resource_plural_path, namespaced=False)
     
         for resource_plural_path in chain.from_iterable(
-            Path(must_gather, "namespaces").glob("*/*/*")
-            for must_gather in self.root_dirs
+            Path(must_gather_absolute_path, "namespaces").glob("*/*/*")
+            for must_gather_absolute_path in self.root_dirs
         ):
             if (
                 resource_plural_path.name.startswith(".")
@@ -272,8 +277,8 @@ class MustGather:
         container_log_file = None
         tail = ""
         log_files = chain.from_iterable(
-                (Path(f'{must_gather}/namespaces/{namespace}/pods/{pod_name}/{container_name}/{container_name}/logs')).glob('*.log') 
-                for must_gather in self.root_dirs.keys()
+                (Path(f'{must_gather_absolute_path}/namespaces/{namespace}/pods/{pod_name}/{container_name}/{container_name}/logs')).glob('*.log') 
+                for must_gather_absolute_path in self.root_dirs
             )
         for log_file in log_files:
             if log_file.name == "current.log" and log_file.stat().st_size > 0:

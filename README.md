@@ -42,7 +42,7 @@ must_gather = MustGather()
 
 async def main():
     try:
-        must_gather.use("/home/must-gather.local.1972254135986597168")
+        await must_gather.use("/home/must-gather.local.1972254135986597168")
         x = await must_gather.get_resources(resource_kind_plural="pods", group="core", all_namespaces=True)
         print(json.dumps(x))
     except:
