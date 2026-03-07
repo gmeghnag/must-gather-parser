@@ -47,7 +47,7 @@ async def main():
         await must_gather.use("/home/must-gather.local.1972254135986597168")
         out = await must_gather.get_resources(
             resource_kind_plural="pods",
-            group="core",
+            group="",
             all_namespaces=True
         )
         print(json.dumps(out))
