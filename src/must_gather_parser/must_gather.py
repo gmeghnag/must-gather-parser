@@ -56,6 +56,18 @@ def construct_undefined(loader, node):
 K8sSafeLoader.add_constructor(None, construct_undefined)
 
 
+def construct_timestamp_as_string(loader, node):
+    """Keep YAML timestamps as plain strings.
+
+    Kubernetes serializes timestamps as RFC3339 strings; when they appear unquoted,
+    the YAML core schema would parse them into datetime objects, which are not
+    JSON-serializable and break downstream consumers (json.dumps, jq bindings)."""
+    return loader.construct_scalar(node)
+
+
+K8sSafeLoader.add_constructor("tag:yaml.org,2002:timestamp", construct_timestamp_as_string)
+
+
 def parse_log_datetime(line: str) -> datetime:
     match = must_gather_timestamp_pattern.match(line)
     if not match:
